@@ -100,10 +100,35 @@
             </div>
         </div>
     }
+    else if (isLoading)
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">載入統計資料中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 點擊上方「開始管理客戶」按鈕開始使用系統
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     private SystemStats? stats;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,6 +139,9 @@
     {
         try
         {
+            // 延遲載入以避免阻塞頁面渲染
+            await Task.Delay(100);
+            
             var customers = await CosmosDbService.GetCustomersAsync();
             stats = new SystemStats
             {
@@ -128,6 +156,10 @@
             Console.WriteLine($"載入系統統計資料時發生錯誤: {ex.Message}");
             // 設定預設值
             stats = new SystemStats();
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
 

@@ -1,0 +1,782 @@
+@page "/investments"
+@page "/customers/{CustomerId}/investments"
+@using CRMSystem.Models
+@using CRMSystem.Services
+@inject ICosmosDbService CosmosDbService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>投資記錄管理</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">首頁</a></li>
+                    <li class="breadcrumb-item"><a href="/customers">客戶管理</a></li>
+                    @if (!string.IsNullOrEmpty(CustomerId) && customer != null)
+                    {
+                        <li class="breadcrumb-item"><a href="/customers/@CustomerId">@customer.Name</a></li>
+                        <li class="breadcrumb-item active">投資記錄</li>
+                    }
+                    else
+                    {
+                        <li class="breadcrumb-item active">投資記錄總覽</li>
+                    }
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <h3>
+                <i class="bi bi-graph-up"></i> 
+                @if (!string.IsNullOrEmpty(CustomerId) && customer != null)
+                {
+                    <text>@customer.Name - 投資記錄</text>
+                }
+                else
+                {
+                    <text>投資記錄總覽</text>
+                }
+            </h3>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-success" @onclick="AddInvestmentRecord">
+                <i class="bi bi-plus-circle"></i> 新增投資記錄
+            </button>
+            @if (!string.IsNullOrEmpty(CustomerId))
+            {
+                <button class="btn btn-outline-secondary ms-2" @onclick="BackToCustomer">
+                    <i class="bi bi-arrow-left"></i> 返回客戶
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- 投資統計卡片 -->
+    @if (investmentSummary != null)
+    {
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">總投資金額</h5>
+                        <h3>@investmentSummary.TotalInvestment.ToString("C0")</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">目前市值</h5>
+                        <h3>@investmentSummary.CurrentValue.ToString("C0")</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card @(investmentSummary.TotalProfitLoss >= 0 ? "bg-success" : "bg-danger") text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">總損益</h5>
+                        <h3>@investmentSummary.TotalProfitLoss.ToString("C0")</h3>
+                        <small>(@investmentSummary.TotalReturnPercentage.ToString("F2")%)</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">持有項目</h5>
+                        <h3>@investmentSummary.ActiveCount</h3>
+                        <small>共 @investmentSummary.TotalCount 筆記錄</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 篩選器 -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <select class="form-select" @onchange="OnAssetTypeChanged">
+                <option value="">所有資產類型</option>
+                <option value="基金">基金</option>
+                <option value="債券">債券</option>
+                <option value="股票">股票</option>
+                <option value="存款">存款</option>
+                <option value="保險">保險</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" @onchange="OnStatusChanged">
+                <option value="">所有狀態</option>
+                <option value="持有中">持有中</option>
+                <option value="已贖回">已贖回</option>
+                <option value="已停損">已停損</option>
+                <option value="已獲利了結">已獲利了結</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" @onchange="OnCurrencyChanged">
+                <option value="">所有幣別</option>
+                <option value="TWD">台幣</option>
+                <option value="USD">美金</option>
+                <option value="EUR">歐元</option>
+                <option value="JPY">日圓</option>
+                <option value="CNY">人民幣</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="搜尋基金名稱..." @bind="searchTerm" @onkeypress="OnSearchKeyPress" />
+                <button class="btn btn-outline-secondary" @onclick="SearchRecords">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">載入中...</span>
+            </div>
+        </div>
+    }
+    else if (filteredRecords?.Any() == true)
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>下單日期</th>
+                        <th>客戶姓名</th>
+                        <th>資產類型</th>
+                        <th>基金/商品名稱</th>
+                        <th>幣別</th>
+                        <th class="text-end">投資金額</th>
+                        <th class="text-end">目前市值</th>
+                        <th class="text-end">損益金額</th>
+                        <th class="text-end">報酬率</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in filteredRecords.OrderByDescending(r => r.Record.OrderDate))
+                    {
+                        <tr>
+                            <td>@item.Record.OrderDate.ToString("yyyy/MM/dd")</td>
+                            <td>
+                                <a href="/customers/@item.CustomerId" class="text-decoration-none">
+                                    @item.CustomerName
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">@item.Record.AssetType</span>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>@item.Record.FundName</strong>
+                                    @if (!string.IsNullOrEmpty(item.Record.FundCode))
+                                    {
+                                        <br><small class="text-muted">@item.Record.FundCode</small>
+                                    }
+                                </div>
+                            </td>
+                            <td>@item.Record.Currency</td>
+                            <td class="text-end">@item.Record.Amount.ToString("N0")</td>
+                            <td class="text-end">
+                                @if (item.Record.CurrentValue > 0)
+                                {
+                                    @item.Record.CurrentValue.ToString("N0")
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td class="text-end @item.Record.ProfitLossColor">
+                                <strong>@item.Record.ProfitLoss.ToString("N0")</strong>
+                            </td>
+                            <td class="text-end @item.Record.ProfitLossColor">
+                                <strong>@item.Record.ProfitLossPercentage.ToString("F2")%</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-@item.Record.StatusColor">@item.Record.Status</span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" @onclick="() => EditInvestmentRecord(item.CustomerId, item.Record)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" @onclick="() => DeleteInvestmentRecord(item.CustomerId, item.Record.Id, item.Record.FundName)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 
+            @if (string.IsNullOrEmpty(searchTerm) && string.IsNullOrEmpty(selectedAssetType) && string.IsNullOrEmpty(selectedStatus))
+            {
+                <text>尚無投資記錄</text>
+            }
+            else
+            {
+                <text>找不到符合條件的記錄</text>
+            }
+        </div>
+    }
+</div>
+
+<!-- 新增/編輯投資記錄模態框 -->
+@if (showInvestmentModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingRecord != null ? "編輯" : "新增")投資記錄</h5>
+                    <button type="button" class="btn-close" @onclick="CloseInvestmentModal"></button>
+                </div>
+                <EditForm Model="currentRecord" OnValidSubmit="SaveInvestmentRecord">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">下單日期 <span class="text-danger">*</span></label>
+                                    <InputDate class="form-control" @bind-Value="currentRecord.OrderDate" />
+                                    <ValidationMessage For="@(() => currentRecord.OrderDate)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">資產類型</label>
+                                    <InputSelect class="form-select" @bind-Value="currentRecord.AssetType">
+                                        <option value="基金">基金</option>
+                                        <option value="債券">債券</option>
+                                        <option value="股票">股票</option>
+                                        <option value="存款">存款</option>
+                                        <option value="保險">保險</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label class="form-label">基金/商品名稱</label>
+                                    <InputText class="form-control" @bind-Value="currentRecord.FundName" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">基金代碼</label>
+                                    <InputText class="form-control" @bind-Value="currentRecord.FundCode" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">幣別 <span class="text-danger">*</span></label>
+                                    <InputSelect class="form-select" @bind-Value="currentRecord.Currency">
+                                        <option value="">請選擇</option>
+                                        <option value="TWD">台幣 (TWD)</option>
+                                        <option value="USD">美金 (USD)</option>
+                                        <option value="EUR">歐元 (EUR)</option>
+                                        <option value="JPY">日圓 (JPY)</option>
+                                        <option value="CNY">人民幣 (CNY)</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => currentRecord.Currency)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">投資金額 <span class="text-danger">*</span></label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.Amount" @onchange="CalculateValues" />
+                                    <ValidationMessage For="@(() => currentRecord.Amount)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">購買方式</label>
+                                    <InputSelect class="form-select" @bind-Value="currentRecord.PurchaseType">
+                                        <option value="單筆">單筆投資</option>
+                                        <option value="定期定額">定期定額</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (currentRecord.PurchaseType == "定期定額")
+                        {
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">月扣金額</label>
+                                        <InputNumber class="form-control" @bind-Value="currentRecord.MonthlyAmount" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">持有單位數</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.Units" @onchange="CalculateValues" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">單位淨值</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.UnitPrice" @onchange="CalculateValues" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">目前市值</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.CurrentValue" @onchange="CalculateValues" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">風險等級</label>
+                                    <InputSelect class="form-select" @bind-Value="currentRecord.RiskLevel">
+                                        <option value="低風險">低風險</option>
+                                        <option value="中等">中等風險</option>
+                                        <option value="高風險">高風險</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">損益金額</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.ProfitLoss" @onchange="CalculatePercentage" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">損益百分比 (%)</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.ProfitLossPercentage" />
+                                    <div class="form-text">自動計算</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">配息金額</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.Dividend" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">手續費</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.Commission" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">狀態</label>
+                                    <InputSelect class="form-select" @bind-Value="currentRecord.Status">
+                                        <option value="持有中">持有中</option>
+                                        <option value="已贖回">已贖回</option>
+                                        <option value="已停損">已停損</option>
+                                        <option value="已獲利了結">已獲利了結</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">賣出日期</label>
+                                    <InputDate class="form-control" @bind-Value="currentRecord.SellDate" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">賣出金額</label>
+                                    <InputNumber class="form-control" @bind-Value="currentRecord.SellAmount" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">備註</label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="currentRecord.Notes" />
+                        </div>
+
+                        <!-- 報酬摘要 -->
+                        @if (currentRecord.Amount > 0)
+                        {
+                            <div class="alert alert-info">
+                                <h6>投資摘要</h6>
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>總報酬：</strong> @currentRecord.TotalReturn.ToString("C0")
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>總報酬率：</strong> @currentRecord.TotalReturnPercentage.ToString("F2")%
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>年化報酬率：</strong> @CalculateAnnualizedReturn().ToString("F2")%
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>持有天數：</strong> @((DateTime.Today - currentRecord.OrderDate).Days) 天
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseInvestmentModal">取消</button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check"></i> @(editingRecord != null ? "更新" : "儲存")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? CustomerId { get; set; }
+
+    private Customer? customer;
+    private List<InvestmentRecordItem> allRecords = new();
+    private List<InvestmentRecordItem> filteredRecords = new();
+    private InvestmentSummary? investmentSummary;
+    private bool isLoading = false;
+    private bool showInvestmentModal = false;
+    private InvestmentRecord currentRecord = new();
+    private InvestmentRecord? editingRecord;
+    private string searchTerm = string.Empty;
+    private string selectedAssetType = string.Empty;
+    private string selectedStatus = string.Empty;
+    private string selectedCurrency = string.Empty;
+
+    public class InvestmentRecordItem
+    {
+        public string CustomerId { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public InvestmentRecord Record { get; set; } = new();
+    }
+
+    public class InvestmentSummary
+    {
+        public decimal TotalInvestment { get; set; }
+        public decimal CurrentValue { get; set; }
+        public decimal TotalProfitLoss { get; set; }
+        public decimal TotalReturnPercentage { get; set; }
+        public int TotalCount { get; set; }
+        public int ActiveCount { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            allRecords.Clear();
+
+            if (!string.IsNullOrEmpty(CustomerId))
+            {
+                // 載入特定客戶的投資記錄
+                customer = await CosmosDbService.GetCustomerAsync(CustomerId);
+                if (customer?.InvestmentRecords?.Any() == true)
+                {
+                    foreach (var record in customer.InvestmentRecords)
+                    {
+                        allRecords.Add(new InvestmentRecordItem
+                        {
+                            CustomerId = customer.Id,
+                            CustomerName = customer.Name,
+                            Record = record
+                        });
+                    }
+                }
+            }
+            else
+            {
+                // 載入所有客戶的投資記錄
+                var customers = await CosmosDbService.GetCustomersAsync();
+                foreach (var cust in customers)
+                {
+                    if (cust.InvestmentRecords?.Any() == true)
+                    {
+                        foreach (var record in cust.InvestmentRecords)
+                        {
+                            allRecords.Add(new InvestmentRecordItem
+                            {
+                                CustomerId = cust.Id,
+                                CustomerName = cust.Name,
+                                Record = record
+                            });
+                        }
+                    }
+                }
+            }
+
+            ApplyFilters();
+            CalculateSummary();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"載入投資記錄時發生錯誤: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        filteredRecords = allRecords.Where(item =>
+            (string.IsNullOrEmpty(selectedAssetType) || item.Record.AssetType == selectedAssetType) &&
+            (string.IsNullOrEmpty(selectedStatus) || item.Record.Status == selectedStatus) &&
+            (string.IsNullOrEmpty(selectedCurrency) || item.Record.Currency == selectedCurrency) &&
+            (string.IsNullOrEmpty(searchTerm) || 
+             item.Record.FundName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             item.Record.FundCode.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             item.CustomerName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+    }
+
+    private void CalculateSummary()
+    {
+        if (!filteredRecords.Any())
+        {
+            investmentSummary = new InvestmentSummary();
+            return;
+        }
+
+        investmentSummary = new InvestmentSummary
+        {
+            TotalInvestment = filteredRecords.Sum(x => x.Record.Amount),
+            CurrentValue = filteredRecords.Sum(x => x.Record.CurrentValue > 0 ? x.Record.CurrentValue : x.Record.Amount + x.Record.ProfitLoss),
+            TotalProfitLoss = filteredRecords.Sum(x => x.Record.ProfitLoss + x.Record.Dividend),
+            TotalCount = filteredRecords.Count,
+            ActiveCount = filteredRecords.Count(x => x.Record.Status == "持有中")
+        };
+
+        if (investmentSummary.TotalInvestment > 0)
+        {
+            investmentSummary.TotalReturnPercentage = (investmentSummary.TotalProfitLoss / investmentSummary.TotalInvestment) * 100;
+        }
+    }
+
+    private void OnAssetTypeChanged(ChangeEventArgs e)
+    {
+        selectedAssetType = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+        CalculateSummary();
+    }
+
+    private void OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+        CalculateSummary();
+    }
+
+    private void OnCurrencyChanged(ChangeEventArgs e)
+    {
+        selectedCurrency = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+        CalculateSummary();
+    }
+
+    private async Task OnSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchRecords();
+        }
+    }
+
+    private Task SearchRecords()
+    {
+        ApplyFilters();
+        CalculateSummary();
+        return Task.CompletedTask;
+    }
+
+    private void AddInvestmentRecord()
+    {
+        editingRecord = null;
+        currentRecord = new InvestmentRecord();
+        showInvestmentModal = true;
+    }
+
+    private void EditInvestmentRecord(string customerId, InvestmentRecord record)
+    {
+        editingRecord = record;
+        currentRecord = new InvestmentRecord
+        {
+            Id = record.Id,
+            OrderDate = record.OrderDate,
+            Currency = record.Currency,
+            FundName = record.FundName,
+            FundCode = record.FundCode,
+            Amount = record.Amount,
+            Units = record.Units,
+            UnitPrice = record.UnitPrice,
+            CurrentValue = record.CurrentValue,
+            ProfitLoss = record.ProfitLoss,
+            ProfitLossPercentage = record.ProfitLossPercentage,
+            AssetType = record.AssetType,
+            RiskLevel = record.RiskLevel,
+            Status = record.Status,
+            PurchaseType = record.PurchaseType,
+            MonthlyAmount = record.MonthlyAmount,
+            SellDate = record.SellDate,
+            SellAmount = record.SellAmount,
+            Commission = record.Commission,
+            Dividend = record.Dividend,
+            Notes = record.Notes
+        };
+        showInvestmentModal = true;
+    }
+
+    private void CloseInvestmentModal()
+    {
+        showInvestmentModal = false;
+        editingRecord = null;
+        currentRecord = new InvestmentRecord();
+    }
+
+    private async Task SaveInvestmentRecord()
+    {
+        try
+        {
+            string targetCustomerId = CustomerId ?? allRecords.FirstOrDefault()?.CustomerId ?? string.Empty;
+            
+            if (string.IsNullOrEmpty(targetCustomerId))
+            {
+                Console.WriteLine("無法確定目標客戶");
+                return;
+            }
+
+            var targetCustomer = await CosmosDbService.GetCustomerAsync(targetCustomerId);
+            if (targetCustomer == null)
+            {
+                Console.WriteLine("找不到目標客戶");
+                return;
+            }
+
+            currentRecord.LastModified = DateTime.UtcNow;
+
+            if (editingRecord != null)
+            {
+                // 更新現有記錄
+                var existingRecord = targetCustomer.InvestmentRecords.FirstOrDefault(r => r.Id == editingRecord.Id);
+                if (existingRecord != null)
+                {
+                    var index = targetCustomer.InvestmentRecords.IndexOf(existingRecord);
+                    targetCustomer.InvestmentRecords[index] = currentRecord;
+                }
+            }
+            else
+            {
+                // 新增記錄
+                currentRecord.Id = Guid.NewGuid().ToString();
+                currentRecord.CreatedDate = DateTime.UtcNow;
+                targetCustomer.InvestmentRecords.Add(currentRecord);
+            }
+
+            await CosmosDbService.UpdateCustomerAsync(targetCustomer);
+            CloseInvestmentModal();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"儲存投資記錄時發生錯誤: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteInvestmentRecord(string customerId, string recordId, string fundName)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", $"確定要刪除投資記錄 '{fundName}' 嗎？"))
+        {
+            try
+            {
+                var targetCustomer = await CosmosDbService.GetCustomerAsync(customerId);
+                if (targetCustomer != null)
+                {
+                    targetCustomer.InvestmentRecords.RemoveAll(r => r.Id == recordId);
+                    await CosmosDbService.UpdateCustomerAsync(targetCustomer);
+                    await LoadData();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"刪除投資記錄時發生錯誤: {ex.Message}");
+            }
+        }
+    }
+
+    private void BackToCustomer()
+    {
+        if (!string.IsNullOrEmpty(CustomerId))
+        {
+            Navigation.NavigateTo($"/customers/{CustomerId}");
+        }
+    }
+
+    private void CalculateValues()
+    {
+        if (currentRecord.Units > 0 && currentRecord.UnitPrice > 0)
+        {
+            currentRecord.CurrentValue = currentRecord.Units * currentRecord.UnitPrice;
+        }
+
+        if (currentRecord.CurrentValue > 0 && currentRecord.Amount > 0)
+        {
+            currentRecord.ProfitLoss = currentRecord.CurrentValue - currentRecord.Amount;
+            currentRecord.ProfitLossPercentage = (currentRecord.ProfitLoss / currentRecord.Amount) * 100;
+        }
+    }
+
+    private void CalculatePercentage()
+    {
+        if (currentRecord.Amount > 0)
+        {
+            currentRecord.ProfitLossPercentage = (currentRecord.ProfitLoss / currentRecord.Amount) * 100;
+        }
+    }
+
+    private decimal CalculateAnnualizedReturn()
+    {
+        var days = (DateTime.Today - currentRecord.OrderDate).Days;
+        if (days <= 0 || currentRecord.Amount <= 0) return 0;
+
+        var dailyReturn = currentRecord.TotalReturnPercentage / 100 / days;
+        return (decimal)(Math.Pow((double)(1 + dailyReturn), 365) - 1) * 100;
+    }
+}
