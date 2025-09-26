@@ -1,0 +1,442 @@
+@page "/customers/{CustomerId}"
+@using CRMSystem.Models
+@using CRMSystem.Services
+@inject ICosmosDbService CosmosDbService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>客戶詳細資料</PageTitle>
+
+@if (customer == null)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">載入中...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+        <!-- 客戶基本資料 -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4>@customer.Name - 客戶詳細資料</h4>
+                        <div>
+                            <button class="btn btn-warning btn-sm me-2" @onclick="EditCustomer">
+                                <i class="bi bi-pencil"></i> 編輯
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick="BackToList">
+                                <i class="bi bi-arrow-left"></i> 返回列表
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr><td><strong>姓名：</strong></td><td>@customer.Name</td></tr>
+                                    <tr><td><strong>性別：</strong></td><td>@customer.Gender</td></tr>
+                                    <tr><td><strong>出生日期：</strong></td><td>@(customer.BirthDate?.ToString("yyyy/MM/dd") ?? "未設定")</td></tr>
+                                    <tr><td><strong>職業：</strong></td><td>@customer.Occupation</td></tr>
+                                    <tr><td><strong>電話：</strong></td><td>@customer.Phone</td></tr>
+                                    <tr><td><strong>手機：</strong></td><td>@customer.Mobile</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr><td><strong>地址：</strong></td><td>@customer.Address</td></tr>
+                                    <tr><td><strong>子女資訊：</strong></td><td>@customer.ChildrenInfo</td></tr>
+                                    <tr><td><strong>客戶來源：</strong></td><td>@customer.CustomerSource</td></tr>
+                                    <tr><td><strong>客戶歸屬：</strong></td><td>@customer.AssignedTo</td></tr>
+                                    <tr><td><strong>建立日期：</strong></td><td>@customer.CreatedDate.ToString("yyyy/MM/dd HH:mm")</td></tr>
+                                    <tr><td><strong>最後修改：</strong></td><td>@customer.LastModified.ToString("yyyy/MM/dd HH:mm")</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(customer.Notes))
+                        {
+                            <div class="row mt-3">
+                                <div class="col">
+                                    <strong>備註：</strong>
+                                    <div class="border rounded p-2 mt-1" style="background-color: #f8f9fa;">
+                                        @customer.Notes
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 投資記錄 -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-graph-up"></i> 投資記錄</h5>
+                        <button class="btn btn-success btn-sm" @onclick="AddInvestmentRecord">
+                            <i class="bi bi-plus"></i> 新增投資記錄
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        @if (customer.InvestmentRecords?.Any() == true)
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-striped table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>下單日期</th>
+                                            <th>資產類型</th>
+                                            <th>幣別</th>
+                                            <th>基金/商品名稱</th>
+                                            <th>金額</th>
+                                            <th>損益</th>
+                                            <th>狀態</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var record in customer.InvestmentRecords.OrderByDescending(r => r.OrderDate))
+                                        {
+                                            <tr>
+                                                <td>@record.OrderDate.ToString("yyyy/MM/dd")</td>
+                                                <td>@record.AssetType</td>
+                                                <td>@record.Currency</td>
+                                                <td>@record.FundName</td>
+                                                <td class="text-end">@record.Amount.ToString("N0")</td>
+                                                <td class="text-end @(record.ProfitLoss >= 0 ? "text-success" : "text-danger")">
+                                                    @record.ProfitLoss.ToString("N0")
+                                                </td>
+                                                <td>@record.Status</td>
+                                                <td>
+                                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteInvestmentRecord(record.Id)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 尚無投資記錄
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 拜訪記錄 -->
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-calendar-check"></i> 拜訪記錄</h5>
+                        <button class="btn btn-primary btn-sm" @onclick="AddVisitRecord">
+                            <i class="bi bi-plus"></i> 新增拜訪記錄
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        @if (customer.VisitRecords?.Any() == true)
+                        {
+                            @foreach (var record in customer.VisitRecords.OrderByDescending(r => r.VisitDate))
+                            {
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <h6>@record.VisitDate.ToString("yyyy/MM/dd") - @record.Assignee</h6>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteVisitRecord(record.Id)">
+                                                    <i class="bi bi-trash"></i> 刪除
+                                                </button>
+                                            </div>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(record.ConversationContent))
+                                        {
+                                            <div class="mt-2">
+                                                <strong>對話內容：</strong>
+                                                <div class="mt-1">@record.ConversationContent</div>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(record.InvestmentAdjustments))
+                                        {
+                                            <div class="mt-2">
+                                                <strong>投資調整：</strong>
+                                                <div class="mt-1">@record.InvestmentAdjustments</div>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(record.FollowUpActions))
+                                        {
+                                            <div class="mt-2">
+                                                <strong>後續追蹤：</strong>
+                                                <div class="mt-1">@record.FollowUpActions</div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 尚無拜訪記錄
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 新增投資記錄模態框 -->
+@if (showInvestmentModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新增投資記錄</h5>
+                    <button type="button" class="btn-close" @onclick="CloseInvestmentModal"></button>
+                </div>
+                <EditForm Model="newInvestmentRecord" OnValidSubmit="SaveInvestmentRecord">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">下單日期 <span class="text-danger">*</span></label>
+                            <InputDate class="form-control" @bind-Value="newInvestmentRecord.OrderDate" />
+                            <ValidationMessage For="@(() => newInvestmentRecord.OrderDate)" class="text-danger" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">資產類型</label>
+                                <InputSelect class="form-select" @bind-Value="newInvestmentRecord.AssetType">
+                                    <option value="基金">基金</option>
+                                    <option value="債券">債券</option>
+                                    <option value="股票">股票</option>
+                                    <option value="存款">存款</option>
+                                    <option value="其他">其他</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">幣別 <span class="text-danger">*</span></label>
+                                <InputSelect class="form-select" @bind-Value="newInvestmentRecord.Currency">
+                                    <option value="">請選擇</option>
+                                    <option value="TWD">台幣 (TWD)</option>
+                                    <option value="USD">美金 (USD)</option>
+                                    <option value="EUR">歐元 (EUR)</option>
+                                    <option value="JPY">日圓 (JPY)</option>
+                                    <option value="CNY">人民幣 (CNY)</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newInvestmentRecord.Currency)" class="text-danger" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">基金/商品名稱</label>
+                            <InputText class="form-control" @bind-Value="newInvestmentRecord.FundName" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">金額</label>
+                                <InputNumber class="form-control" @bind-Value="newInvestmentRecord.Amount" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">損益</label>
+                                <InputNumber class="form-control" @bind-Value="newInvestmentRecord.ProfitLoss" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">狀態</label>
+                            <InputSelect class="form-select" @bind-Value="newInvestmentRecord.Status">
+                                <option value="持有中">持有中</option>
+                                <option value="已贖回">已贖回</option>
+                                <option value="已停損">已停損</option>
+                                <option value="已獲利了結">已獲利了結</option>
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">備註</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="newInvestmentRecord.Notes" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseInvestmentModal">取消</button>
+                        <button type="submit" class="btn btn-success">儲存</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 新增拜訪記錄模態框 -->
+@if (showVisitModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新增拜訪記錄</h5>
+                    <button type="button" class="btn-close" @onclick="CloseVisitModal"></button>
+                </div>
+                <EditForm Model="newVisitRecord" OnValidSubmit="SaveVisitRecord">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">拜訪日期 <span class="text-danger">*</span></label>
+                                <InputDate class="form-control" @bind-Value="newVisitRecord.VisitDate" />
+                                <ValidationMessage For="@(() => newVisitRecord.VisitDate)" class="text-danger" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">負責人 <span class="text-danger">*</span></label>
+                                <InputSelect class="form-select" @bind-Value="newVisitRecord.Assignee">
+                                    <option value="">請選擇</option>
+                                    <option value="呂歡">呂歡</option>
+                                    <option value="孔韻昇">孔韻昇</option>
+                                    <option value="妹妹">妹妹</option>
+                                    <option value="其他同事">其他同事</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newVisitRecord.Assignee)" class="text-danger" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">對話內容</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="newVisitRecord.ConversationContent" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">投資調整</label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="newVisitRecord.InvestmentAdjustments" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">後續追蹤事項</label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="newVisitRecord.FollowUpActions" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseVisitModal">取消</button>
+                        <button type="submit" class="btn btn-primary">儲存</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string CustomerId { get; set; } = string.Empty;
+    
+    private Customer? customer;
+    private bool showInvestmentModal = false;
+    private bool showVisitModal = false;
+    private InvestmentRecord newInvestmentRecord = new();
+    private VisitRecord newVisitRecord = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomer();
+    }
+
+    private async Task LoadCustomer()
+    {
+        try
+        {
+            customer = await CosmosDbService.GetCustomerAsync(CustomerId);
+            if (customer == null)
+            {
+                Navigation.NavigateTo("/customers");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"載入客戶資料時發生錯誤: {ex.Message}");
+            Navigation.NavigateTo("/customers");
+        }
+    }
+
+    private void EditCustomer()
+    {
+        Navigation.NavigateTo($"/customers/{CustomerId}/edit");
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/customers");
+    }
+
+    private void AddInvestmentRecord()
+    {
+        newInvestmentRecord = new InvestmentRecord();
+        showInvestmentModal = true;
+    }
+
+    private void CloseInvestmentModal()
+    {
+        showInvestmentModal = false;
+        newInvestmentRecord = new InvestmentRecord();
+    }
+
+    private async Task SaveInvestmentRecord()
+    {
+        if (customer != null)
+        {
+            customer.InvestmentRecords.Add(newInvestmentRecord);
+            await CosmosDbService.UpdateCustomerAsync(customer);
+            CloseInvestmentModal();
+            await LoadCustomer();
+        }
+    }
+
+    private async Task DeleteInvestmentRecord(string recordId)
+    {
+        if (customer != null && await JSRuntime.InvokeAsync<bool>("confirm", "確定要刪除此投資記錄嗎？"))
+        {
+            customer.InvestmentRecords.RemoveAll(r => r.Id == recordId);
+            await CosmosDbService.UpdateCustomerAsync(customer);
+            await LoadCustomer();
+        }
+    }
+
+    private void AddVisitRecord()
+    {
+        newVisitRecord = new VisitRecord();
+        showVisitModal = true;
+    }
+
+    private void CloseVisitModal()
+    {
+        showVisitModal = false;
+        newVisitRecord = new VisitRecord();
+    }
+
+    private async Task SaveVisitRecord()
+    {
+        if (customer != null)
+        {
+            customer.VisitRecords.Add(newVisitRecord);
+            await CosmosDbService.UpdateCustomerAsync(customer);
+            CloseVisitModal();
+            await LoadCustomer();
+        }
+    }
+
+    private async Task DeleteVisitRecord(string recordId)
+    {
+        if (customer != null && await JSRuntime.InvokeAsync<bool>("confirm", "確定要刪除此拜訪記錄嗎？"))
+        {
+            customer.VisitRecords.RemoveAll(r => r.Id == recordId);
+            await CosmosDbService.UpdateCustomerAsync(customer);
+            await LoadCustomer();
+        }
+    }
+}

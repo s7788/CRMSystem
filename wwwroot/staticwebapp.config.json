@@ -1,0 +1,25 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/images/*.{png,jpg,gif}", "/css/*"]
+  },
+  "mimeTypes": {
+    ".json": "application/json",
+    ".wasm": "application/wasm",
+    ".woff": "application/font-woff",
+    ".woff2": "application/font-woff2"
+  },
+  "globalHeaders": {
+    "cache-control": "must-revalidate, max-age=6000"
+  },
+  "routes": [
+    {
+      "route": "/customers/*",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+@page "/customers/create"
+@page "/customers/{CustomerId}/edit"
+@using CRMSystem.Models
+@using CRMSystem.Services
+@using System.ComponentModel.DataAnnotations
+@inject ICosmosDbService CosmosDbService
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsEditMode ? "編輯客戶" : "新增客戶")</PageTitle>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4>@(IsEditMode ? "編輯客戶資料" : "新增客戶資料")</h4>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="customer" OnValidSubmit="SaveCustomer">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">姓名 <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="customer.Name" />
+                                <ValidationMessage For="@(() => customer.Name)" class="text-danger" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">性別</label>
+                                <InputSelect class="form-select" @bind-Value="customer.Gender">
+                                    <option value="">請選擇</option>
+                                    <option value="男">男</option>
+                                    <option value="女">女</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">出生日期</label>
+                                <InputDate class="form-control" @bind-Value="customer.BirthDate" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">職業</label>
+                                <InputText class="form-control" @bind-Value="customer.Occupation" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">地址</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="customer.Address" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">電話</label>
+                                <InputText class="form-control" @bind-Value="customer.Phone" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">手機</label>
+                                <InputText class="form-control" @bind-Value="customer.Mobile" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">子女資訊</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="customer.ChildrenInfo" placeholder="例：兒子2歲、女兒5歲" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">客戶來源</label>
+                                <InputSelect class="form-select" @bind-Value="customer.CustomerSource">
+                                    <option value="">請選擇</option>
+                                    <option value="銀行">銀行</option>
+                                    <option value="朋友">朋友</option>
+                                    <option value="親戚">親戚</option>
+                                    <option value="網路">網路</option>
+                                    <option value="廣告">廣告</option>
+                                    <option value="其他">其他</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">客戶歸屬</label>
+                                <InputSelect class="form-select" @bind-Value="customer.AssignedTo">
+                                    <option value="">請選擇</option>
+                                    <option value="呂歡">呂歡</option>
+                                    <option value="孔韻昇">孔韻昇</option>
+                                    <option value="妹妹">妹妹</option>
+                                    <option value="其他同事">其他同事</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">備註</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="customer.Notes" 
+                                placeholder="客戶習慣、生活細節、通常在家時間、喜好等..." />
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                <i class="bi bi-arrow-left"></i> 取消
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                <i class="bi bi-check"></i> @(IsEditMode ? "更新" : "儲存")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? CustomerId { get; set; }
+    
+    private Customer customer = new Customer();
+    private bool isSubmitting = false;
+
+    private bool IsEditMode => !string.IsNullOrEmpty(CustomerId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsEditMode && !string.IsNullOrEmpty(CustomerId))
+        {
+            try
+            {
+                var existingCustomer = await CosmosDbService.GetCustomerAsync(CustomerId);
+                if (existingCustomer != null)
+                {
+                    customer = existingCustomer;
+                }
+                else
+                {
+                    Navigation.NavigateTo("/customers");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"載入客戶資料時發生錯誤: {ex.Message}");
+                Navigation.NavigateTo("/customers");
+            }
+        }
+    }
+
+    private async Task SaveCustomer()
+    {
+        isSubmitting = true;
+        try
+        {
+            if (IsEditMode)
+            {
+                await CosmosDbService.UpdateCustomerAsync(customer);
+            }
+            else
+            {
+                await CosmosDbService.CreateCustomerAsync(customer);
+            }
+
+            Navigation.NavigateTo("/customers");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"儲存客戶資料時發生錯誤: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/customers");
+    }
+}
