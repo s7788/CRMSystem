@@ -36,7 +36,7 @@
                     <i class="bi bi-graph-up" style="font-size: 3rem; color: #28a745;"></i>
                     <h5 class="card-title mt-3">投資記錄</h5>
                     <p class="card-text">追蹤客戶投資組合、基金狀況及損益分析</p>
-                    <a href="/customers" class="btn btn-success">管理投資</a>
+                    <a href="/investments" class="btn btn-success">管理投資</a>
                 </div>
             </div>
         </div>
@@ -68,7 +68,12 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5><i class="bi bi-bar-chart"></i> 系統統計</h5>
+                        <h5>
+                            <i class="bi bi-bar-chart"></i> 系統統計
+                            <button class="btn btn-sm btn-outline-primary ms-2" @onclick="LoadStats">
+                                <i class="bi bi-arrow-clockwise"></i> 重新載入
+                            </button>
+                        </h5>
                     </div>
                     <div class="card-body">
                         <div class="row text-center">
@@ -109,6 +114,7 @@
                         <div class="spinner-border" role="status">
                             <span class="visually-hidden">載入統計資料中...</span>
                         </div>
+                        <p class="mt-2">載入統計資料中...</p>
                     </div>
                 </div>
             </div>
@@ -119,7 +125,11 @@
         <div class="row">
             <div class="col-12">
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> 點擊上方「開始管理客戶」按鈕開始使用系統
+                    <i class="bi bi-info-circle"></i> 
+                    系統已就緒！點擊上方功能卡片開始使用
+                    <button class="btn btn-sm btn-outline-primary ms-3" @onclick="LoadStats">
+                        <i class="bi bi-bar-chart"></i> 載入統計資料
+                    </button>
                 </div>
             </div>
         </div>
@@ -128,21 +138,24 @@
 
 @code {
     private SystemStats? stats;
-    private bool isLoading = true;
+    private bool isLoading = false;
 
-    protected override async Task OnInitializedAsync()
+    private async Task LoadStats()
     {
         await LoadSystemStats();
+        StateHasChanged();
     }
 
     private async Task LoadSystemStats()
     {
         try
         {
-            // 延遲載入以避免阻塞頁面渲染
-            await Task.Delay(100);
+            isLoading = true;
+            Console.WriteLine("開始載入系統統計資料...");
             
             var customers = await CosmosDbService.GetCustomersAsync();
+            Console.WriteLine($"成功載入 {customers.Count()} 個客戶");
+            
             stats = new SystemStats
             {
                 TotalCustomers = customers.Count(),
@@ -150,10 +163,13 @@
                 TotalVisitRecords = customers.SelectMany(c => c.VisitRecords).Count(),
                 NewCustomersThisMonth = customers.Count(c => c.CreatedDate >= new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1))
             };
+            
+            Console.WriteLine("系統統計資料載入完成");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"載入系統統計資料時發生錯誤: {ex.Message}");
+            Console.WriteLine($"錯誤詳情: {ex.StackTrace}");
             // 設定預設值
             stats = new SystemStats();
         }
