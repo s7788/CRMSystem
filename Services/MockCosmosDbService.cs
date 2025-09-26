@@ -75,13 +75,50 @@ namespace CRMSystem.Services
                 }
             });
 
-            customer1.VisitRecords.Add(new VisitRecord
+            customer1.VisitRecords.AddRange(new[]
             {
-                VisitDate = DateTime.Today.AddDays(-7),
-                Assignee = "呂歡",
-                ConversationContent = "討論投資組合調整，客戶對科技股表現滿意",
-                InvestmentAdjustments = "增加科技基金部位",
-                FollowUpActions = "下周再次追蹤市場狀況"
+                new VisitRecord
+                {
+                    VisitDate = DateTime.Today.AddDays(-7),
+                    VisitTime = "14:30",
+                    Assignee = "呂歡",
+                    VisitType = "面談",
+                    VisitLocation = "客戶家中",
+                    VisitPurpose = "定期關懷及投資檢視",
+                    CustomerMood = "滿意",
+                    ConversationContent = "討論投資組合調整，客戶對科技股表現滿意，詢問是否需要增加部位。客戶提到最近工作穩定，有額外資金可投資。",
+                    CustomerConcerns = "擔心市場波動，希望了解停損策略",
+                    MarketDiscussion = "討論科技股前景，AI相關產業發展趨勢",
+                    InvestmentAdjustments = "建議增加科技基金部位至30%",
+                    ProductIntroduced = "AI科技基金、ESG永續基金",
+                    CustomerFeedback = "對服務很滿意，希望持續定期追蹤",
+                    FollowUpActions = "下周再次追蹤市場狀況，準備AI基金相關資料",
+                    FollowUpDate = DateTime.Today.AddDays(7),
+                    FollowUpCompleted = false,
+                    VisitDuration = 60,
+                    VisitRating = 5,
+                    NextContactSuggestion = "每月第二週電話追蹤",
+                    IsHotLead = true,
+                    LeadScore = 85,
+                    Tags = new List<string> { "高淨值", "科技股偏好", "定期客戶" }
+                },
+                new VisitRecord
+                {
+                    VisitDate = DateTime.Today.AddDays(-30),
+                    VisitTime = "10:00",
+                    Assignee = "呂歡",
+                    VisitType = "電話",
+                    VisitPurpose = "投資組合檢視",
+                    CustomerMood = "中性",
+                    ConversationContent = "電話確認投資狀況，客戶表示滿意目前配置",
+                    FollowUpActions = "安排下次面談時間",
+                    FollowUpDate = DateTime.Today.AddDays(-7),
+                    FollowUpCompleted = true,
+                    VisitDuration = 20,
+                    VisitRating = 4,
+                    LeadScore = 80,
+                    Tags = new List<string> { "電話追蹤" }
+                }
             });
 
             var customer2 = new Customer
@@ -143,6 +180,53 @@ namespace CRMSystem.Services
                     Dividend = 800,
                     Commission = 100,
                     Notes = "保守投資組合"
+                }
+            });
+
+            customer2.VisitRecords.AddRange(new[]
+            {
+                new VisitRecord
+                {
+                    VisitDate = DateTime.Today.AddDays(-5),
+                    VisitTime = "19:00",
+                    Assignee = "孔韻昇",
+                    VisitType = "視訊",
+                    VisitLocation = "線上會議",
+                    VisitPurpose = "季度投資檢視",
+                    CustomerMood = "滿意",
+                    ConversationContent = "討論季度投資績效，客戶滿意債券基金的穩定收益，詢問是否有其他保守型投資選項。",
+                    CustomerConcerns = "希望降低投資風險，確保資金安全",
+                    MarketDiscussion = "討論債市走勢，利率政策影響",
+                    InvestmentAdjustments = "建議增加政府債券比重",
+                    ProductIntroduced = "短期債券基金、保本型商品",
+                    CustomerFeedback = "讚賞風險控制得當，希望維持保守策略",
+                    FollowUpActions = "提供保本型商品資料，安排下次季度檢視",
+                    FollowUpDate = DateTime.Today.AddDays(90),
+                    FollowUpCompleted = false,
+                    VisitDuration = 45,
+                    VisitRating = 4,
+                    NextContactSuggestion = "季度檢視，週末時間較方便",
+                    IsHotLead = false,
+                    LeadScore = 70,
+                    Tags = new List<string> { "保守型", "醫師", "季度檢視" }
+                },
+                new VisitRecord
+                {
+                    VisitDate = DateTime.Today.AddDays(-95),
+                    VisitTime = "15:00",
+                    Assignee = "孔韻昇",
+                    VisitType = "面談",
+                    VisitLocation = "診所",
+                    VisitPurpose = "初次投資諮詢",
+                    CustomerMood = "中性",
+                    ConversationContent = "了解客戶投資需求，風險承受度評估",
+                    FollowUpActions = "準備投資建議書",
+                    FollowUpDate = DateTime.Today.AddDays(-80),
+                    FollowUpCompleted = true,
+                    VisitDuration = 90,
+                    VisitRating = 4,
+                    LeadScore = 65,
+                    Tags = new List<string> { "新客戶", "風險評估" }
                 }
             });
 

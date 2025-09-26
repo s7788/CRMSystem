@@ -205,34 +205,93 @@ else
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5><i class="bi bi-calendar-check"></i> 拜訪記錄</h5>
-                        <button class="btn btn-primary btn-sm" @onclick="AddVisitRecord">
-                            <i class="bi bi-plus"></i> 新增拜訪記錄
-                        </button>
+                        <div>
+                            <button class="btn btn-primary btn-sm me-2" @onclick="AddVisitRecord">
+                                <i class="bi bi-plus"></i> 新增拜訪記錄
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         @if (customer.VisitRecords?.Any() == true)
                         {
-                            @foreach (var record in customer.VisitRecords.OrderByDescending(r => r.VisitDate))
+                            <!-- 拜訪統計 -->
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h6 class="text-muted">總拜訪次數</h6>
+                                        <h5 class="text-primary">@customer.VisitRecords.Count</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h6 class="text-muted">平均評分</h6>
+                                        <h5 class="text-success">
+                                            @customer.VisitRecords.Average(r => r.VisitRating).ToString("F1")
+                                            <small>(@(new string('★', (int)Math.Round(customer.VisitRecords.Average(r => r.VisitRating)))))</small>
+                                        </h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h6 class="text-muted">待追蹤</h6>
+                                        <h5 class="text-warning">@customer.VisitRecords.Count(r => r.FollowUpDate.HasValue && !r.FollowUpCompleted)</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h6 class="text-muted">最近拜訪</h6>
+                                        <h5 class="text-info">@customer.VisitRecords.Max(r => r.VisitDate).ToString("MM/dd")</h5>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @foreach (var record in customer.VisitRecords.OrderByDescending(r => r.VisitDate).Take(3))
                             {
                                 <div class="card mb-3">
                                     <div class="card-body">
                                         <div class="row">
                                             <div class="col-md-8">
-                                                <h6>@record.VisitDate.ToString("yyyy/MM/dd") - @record.Assignee</h6>
+                                                <h6>
+                                                    <i class="@record.VisitTypeIcon"></i>
+                                                    @record.VisitDate.ToString("yyyy/MM/dd") @record.VisitTime - @record.Assignee
+                                                    @if (record.IsHotLead)
+                                                    {
+                                                        <span class="badge bg-danger ms-1">🔥</span>
+                                                    }
+                                                </h6>
+                                                <small class="text-muted">
+                                                    <span class="badge bg-info me-1">@record.VisitType</span>
+                                                    <span class="badge bg-@record.MoodColor me-1">@record.CustomerMood</span>
+                                                    <span class="text-warning">@record.RatingStars</span>
+                                                </small>
                                             </div>
                                             <div class="col-md-4 text-end">
-                                                <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteVisitRecord(record.Id)">
-                                                    <i class="bi bi-trash"></i> 刪除
-                                                </button>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-primary" @onclick="() => EditVisitRecord(record)">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-danger" @onclick="() => DeleteVisitRecord(record.Id)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
+                                        
+                                        @if (!string.IsNullOrEmpty(record.VisitPurpose))
+                                        {
+                                            <div class="mt-2">
+                                                <small><strong>拜訪目的：</strong> @record.VisitPurpose</small>
+                                            </div>
+                                        }
+
                                         @if (!string.IsNullOrEmpty(record.ConversationContent))
                                         {
                                             <div class="mt-2">
                                                 <strong>對話內容：</strong>
-                                                <div class="mt-1">@record.ConversationContent</div>
+                                                <div class="mt-1">@(record.ConversationContent.Length > 150 ? record.ConversationContent.Substring(0, 150) + "..." : record.ConversationContent)</div>
                                             </div>
                                         }
+                                        
                                         @if (!string.IsNullOrEmpty(record.InvestmentAdjustments))
                                         {
                                             <div class="mt-2">
@@ -240,11 +299,30 @@ else
                                                 <div class="mt-1">@record.InvestmentAdjustments</div>
                                             </div>
                                         }
+                                        
                                         @if (!string.IsNullOrEmpty(record.FollowUpActions))
                                         {
                                             <div class="mt-2">
                                                 <strong>後續追蹤：</strong>
-                                                <div class="mt-1">@record.FollowUpActions</div>
+                                                <div class="mt-1">
+                                                    @record.FollowUpActions
+                                                    @if (record.FollowUpDate.HasValue)
+                                                    {
+                                                        <span class="badge bg-@record.FollowUpStatusColor ms-2">
+                                                            @record.FollowUpDate.Value.ToString("MM/dd") - @record.FollowUpStatus
+                                                        </span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+
+                                        @if (record.Tags?.Any() == true)
+                                        {
+                                            <div class="mt-2">
+                                                @foreach (var tag in record.Tags)
+                                                {
+                                                    <span class="badge bg-light text-dark me-1">#@tag</span>
+                                                }
                                             </div>
                                         }
                                     </div>
@@ -543,6 +621,37 @@ else
     private void AddVisitRecord()
     {
         newVisitRecord = new VisitRecord();
+        showVisitModal = true;
+    }
+
+    private void EditVisitRecord(VisitRecord record)
+    {
+        newVisitRecord = new VisitRecord
+        {
+            Id = record.Id,
+            VisitDate = record.VisitDate,
+            VisitTime = record.VisitTime,
+            Assignee = record.Assignee,
+            VisitType = record.VisitType,
+            VisitLocation = record.VisitLocation,
+            VisitPurpose = record.VisitPurpose,
+            CustomerMood = record.CustomerMood,
+            ConversationContent = record.ConversationContent,
+            CustomerConcerns = record.CustomerConcerns,
+            MarketDiscussion = record.MarketDiscussion,
+            InvestmentAdjustments = record.InvestmentAdjustments,
+            ProductIntroduced = record.ProductIntroduced,
+            CustomerFeedback = record.CustomerFeedback,
+            FollowUpActions = record.FollowUpActions,
+            FollowUpDate = record.FollowUpDate,
+            FollowUpCompleted = record.FollowUpCompleted,
+            VisitDuration = record.VisitDuration,
+            VisitRating = record.VisitRating,
+            NextContactSuggestion = record.NextContactSuggestion,
+            IsHotLead = record.IsHotLead,
+            LeadScore = record.LeadScore,
+            Tags = new List<string>(record.Tags)
+        };
         showVisitModal = true;
     }
 
