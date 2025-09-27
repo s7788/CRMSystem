@@ -1,0 +1,323 @@
+@page "/visits/create"
+@using CRMSystem.Models
+@using CRMSystem.Services
+@inject ICosmosDbService CosmosDbService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>新增拜訪紀錄</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-plus-circle"></i> 新增拜訪記錄</h2>
+            <p class="text-muted">記錄客戶拜訪的詳細資訊</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> 返回列表
+        </button>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">拜訪基本資訊</h5>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="@visitRecord" OnValidSubmit="@SaveRecord">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">選擇客戶 <span class="text-danger">*</span></label>
+                                <select class="form-select @(isSubmitted && string.IsNullOrEmpty(selectedCustomerId) ? "is-invalid" : "")" 
+                                        @bind="selectedCustomerId">
+                                    <option value="">請選擇客戶</option>
+                                    @foreach (var customer in customers)
+                                    {
+                                        <option value="@customer.Id">@customer.Name (@customer.Phone)</option>
+                                    }
+                                </select>
+                                @if (isSubmitted && string.IsNullOrEmpty(selectedCustomerId))
+                                {
+                                    <div class="invalid-feedback">請選擇客戶</div>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">負責人 <span class="text-danger">*</span></label>
+                                <select class="form-select" @bind="visitRecord.Assignee">
+                                    <option value="">請選擇負責人</option>
+                                    <option value="呂歡">呂歡</option>
+                                    <option value="孔韻昇">孔韻昇</option>
+                                </select>
+                                <ValidationMessage For="@(() => visitRecord.Assignee)" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪日期 <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" @bind="visitRecord.VisitDate" />
+                                <ValidationMessage For="@(() => visitRecord.VisitDate)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪時間</label>
+                                <input type="text" class="form-control" @bind="visitRecord.VisitTime" 
+                                       placeholder="例如：14:00" pattern="[0-9]{2}:[0-9]{2}" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪方式</label>
+                                <select class="form-select" @bind="visitRecord.VisitType">
+                                    <option value="面談">面談</option>
+                                    <option value="電話">電話</option>
+                                    <option value="視訊">視訊</option>
+                                    <option value="簡訊">簡訊</option>
+                                    <option value="EMAIL">EMAIL</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪地點</label>
+                                <input type="text" class="form-control" @bind="visitRecord.VisitLocation" 
+                                       placeholder="例如：客戶家中、辦公室、咖啡廳等" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪目的</label>
+                                <input type="text" class="form-control" @bind="visitRecord.VisitPurpose" 
+                                       placeholder="例如：定期關懷、投資諮詢、產品介紹等" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">客戶情緒</label>
+                                <select class="form-select" @bind="visitRecord.CustomerMood">
+                                    <option value="滿意">滿意</option>
+                                    <option value="中性">中性</option>
+                                    <option value="不滿">不滿</option>
+                                    <option value="抱怨">抱怨</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">談話內容</label>
+                            <textarea class="form-control" @bind="visitRecord.ConversationContent" 
+                                      rows="4" placeholder="記錄與客戶的主要談話內容..."></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">客戶關注點</label>
+                            <textarea class="form-control" @bind="visitRecord.CustomerConcerns" 
+                                      rows="3" placeholder="客戶特別關心或在意的事項..."></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">市場討論內容</label>
+                            <textarea class="form-control" @bind="visitRecord.MarketDiscussion" 
+                                      rows="3" placeholder="討論的市場趨勢、投資機會等..."></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">投資調整建議</label>
+                            <textarea class="form-control" @bind="visitRecord.InvestmentAdjustments" 
+                                      rows="3" placeholder="建議的投資組合調整..."></textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">介紹的產品</label>
+                                <input type="text" class="form-control" @bind="visitRecord.ProductIntroduced" 
+                                       placeholder="向客戶介紹的金融產品" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪時長(分鐘)</label>
+                                <input type="number" class="form-control" @bind="visitRecord.VisitDuration" 
+                                       min="0" max="480" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">客戶回饋</label>
+                            <textarea class="form-control" @bind="visitRecord.CustomerFeedback" 
+                                      rows="3" placeholder="客戶對服務或產品的回饋意見..."></textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">拜訪效果評分</label>
+                                <select class="form-select" @bind="visitRecord.VisitRating">
+                                    <option value="1">1 - 很差</option>
+                                    <option value="2">2 - 差</option>
+                                    <option value="3">3 - 普通</option>
+                                    <option value="4">4 - 好</option>
+                                    <option value="5">5 - 很好</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">客戶評分 (0-100)</label>
+                                <input type="number" class="form-control" @bind="visitRecord.LeadScore" 
+                                       min="0" max="100" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">後續行動計劃</label>
+                            <textarea class="form-control" @bind="visitRecord.FollowUpActions" 
+                                      rows="3" placeholder="下次需要跟進的具體行動..."></textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">預計追蹤日期</label>
+                                <input type="date" class="form-control" @bind="visitRecord.FollowUpDate" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">下次聯絡建議</label>
+                                <input type="text" class="form-control" @bind="visitRecord.NextContactSuggestion" 
+                                       placeholder="建議的下次聯絡方式或時機" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="visitRecord.IsHotLead" />
+                                <label class="form-check-label">
+                                    標記為熱門客戶 🔥
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="GoBack">
+                                <i class="bi bi-x"></i> 取消
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                <i class="bi bi-check"></i> 儲存記錄
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">拜訪提醒</h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-lightbulb"></i> 拜訪小貼士</h6>
+                        <ul class="mb-0 small">
+                            <li>詳細記錄客戶關注的重點</li>
+                            <li>客觀記錄客戶的情緒反應</li>
+                            <li>明確規劃後續跟進行動</li>
+                            <li>及時更新客戶評分</li>
+                        </ul>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(selectedCustomerId))
+                    {
+                        var selectedCustomer = customers.FirstOrDefault(c => c.Id == selectedCustomerId);
+                        if (selectedCustomer != null)
+                        {
+                            <div class="alert alert-success">
+                                <h6><i class="bi bi-person-check"></i> 客戶資訊</h6>
+                                <p class="mb-1"><strong>姓名：</strong>@selectedCustomer.Name</p>
+                                <p class="mb-1"><strong>電話：</strong>@selectedCustomer.Phone</p>
+                                <p class="mb-1"><strong>職業：</strong>@selectedCustomer.Occupation</p>
+                                <p class="mb-0"><strong>負責人：</strong>@selectedCustomer.AssignedTo</p>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private VisitRecord visitRecord = new();
+    private List<Customer> customers = new();
+    private string selectedCustomerId = "";
+    private bool isSaving = false;
+    private bool isSubmitted = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        try
+        {
+            customers = (await CosmosDbService.GetCustomersAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"載入客戶列表失敗: {ex.Message}");
+        }
+    }
+
+    private async Task SaveRecord()
+    {
+        isSubmitted = true;
+        
+        if (string.IsNullOrEmpty(selectedCustomerId))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "請選擇客戶");
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+
+            // 獲取選中的客戶
+            var customer = await CosmosDbService.GetCustomerAsync(selectedCustomerId);
+            if (customer == null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "找不到指定的客戶");
+                return;
+            }
+
+            // 設定記錄的建立和修改時間
+            visitRecord.CreatedDate = DateTime.UtcNow;
+            visitRecord.LastModified = DateTime.UtcNow;
+
+            // 將拜訪記錄加入客戶的記錄中
+            customer.VisitRecords.Add(visitRecord);
+
+            // 更新客戶資料
+            await CosmosDbService.UpdateCustomerAsync(customer);
+
+            await JSRuntime.InvokeVoidAsync("alert", "拜訪記錄已成功儲存！");
+            
+            // 返回拜訪記錄列表
+            Navigation.NavigateTo("/visits");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"儲存失敗: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/visits");
+    }
+}
